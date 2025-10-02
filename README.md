@@ -27,13 +27,13 @@ Benchmarks were run on a local WSL2 environment by ingesting and querying a data
 ```mermaid
 graph TD;
     subgraph "Docker Container"
-        Client[External Client] -- "HTTP POST /api/ingest\n(JSON)" --> FastAPI;
-        Client -- "HTTP GET /api/query\n(JSON)" --> FastAPI;
+        Client[External Client] -- "HTTP POST /api/ingest(JSON)" --> FastAPI;
+        Client -- "HTTP GET /api/query(JSON)" --> FastAPI;
 
         FastAPI[Python FastAPI Server] -- "Calls Function" --> CtypesBridge[Python ctypes Bridge];
         CtypesBridge -- "Loads & Calls" --> CppEngine[libinsight.so];
         
-        subgraph "C++ Storage Engine (libinsight.so)"
+        subgraph "C++ Storage Engine"
             CppEngine -- "Writes/Reads Compressed Data" --> Shards[Time-Sharded .bin Files];
         end
     end
