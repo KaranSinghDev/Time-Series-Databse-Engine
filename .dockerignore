@@ -1,0 +1,8 @@
+# Ignore Python virtual environment
+venv/
+
+# Ignore local C++ build artifacts
+engine/build/
+
+# Ignore IDE/editor-specific files
+.vscode/
