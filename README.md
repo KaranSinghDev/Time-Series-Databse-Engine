@@ -22,6 +22,10 @@ Benchmarks were run on a local WSL2 environment by ingesting and querying a data
 | Cold Query Latency (p99) | ~16 ms           | Querying a 24-hour window of older data (86,400 points); time-sharding avoids full scan of entire dataset.       |
 | Ingestion Throughput     | ~5,500 points/sec| Baseline performance; bottleneck is per-point file I/O—batch ingestion API proposed for optimization.            |
 
+1.By designing the compression algorithms for the data's specific patterns, the engine achieves a 50% storage reduction on high-entropy data, a result generic algorithms don't generally achieve.
+
+2.By architecting the I/O pattern to align with the OS page cache, the engine delivers p99 latencies of just 1.3ms on hot-cache reads—a level of performance typically associated with highly-optimized, low-level systems.
+
 ## System Architecture
 
 ```mermaid
