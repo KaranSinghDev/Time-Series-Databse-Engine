@@ -37,20 +37,20 @@ flowchart TD
     %% =============================
     Ingest --> WP[Write Path]:::process
 
-    WP -->|1. Append to WAL (Disk)| WAL[(Write-Ahead Log)]:::disk
-    WP -->|2. Insert into Memtable (RAM)| Memtable[(Memtable)]:::ram
+    WP -->|"1. Append to WAL - Disk"| WAL[Write-Ahead Log]:::disk
+    WP -->|"2. Insert into Memtable - RAM"| Memtable[Memtable]:::ram
 
     %% =============================
     %%  READ PATH (HOT QUERIES)
     %% =============================
-    Query -->|3. Read recent data| Memtable
+    Query -->|"3. Read recent data"| Memtable
 
     %% =============================
     %%  FLUSH & COMPRESSION
     %% =============================
-    Memtable -->|4. Flush when full| Comp[Compression Stage]:::process
+    Memtable -->|"4. Flush when full"| Comp[Compression Stage]:::process
     
-    Comp -->|5. Write compressed shard (Disk)| Shard[(Time-Sharded .bin File)]:::disk
+    Comp -->|"5. Write compressed shard - Disk"| Shard[Time-Sharded .bin File]:::disk
 
     %% =============================
     %%  STYLES
@@ -59,6 +59,7 @@ flowchart TD
     classDef process fill:#333,stroke:#111,color:#fff;
     classDef ram fill:#4caf50,stroke:#2e7d32,color:#fff;
     classDef disk fill:#6a1b9a,stroke:#4a126d,color:#fff;
+
 ```
 
 ## Technical Deep Dive: Design Decisions
