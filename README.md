@@ -23,8 +23,7 @@ The engine's design is inspired by a Log-Structured Merge-Tree (LSM-Tree) to opt
 5. **Flush & Compress**: Once the memtable is full, its contents are sorted, compressed, and flushed to a new, immutable time-shard file on disk
 
 ### Architecture Diagram
-```md
-
+```mermaid
 flowchart TD
 
     %% =============================
@@ -60,8 +59,6 @@ flowchart TD
     classDef process fill:#333,stroke:#111,color:#fff;
     classDef ram fill:#4caf50,stroke:#2e7d32,color:#fff;
     classDef disk fill:#6a1b9a,stroke:#4a126d,color:#fff;
-
-
 ```
 
 ## Technical Deep Dive: Design Decisions
