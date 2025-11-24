@@ -23,18 +23,19 @@ The engine's design is inspired by a Log-Structured Merge-Tree (LSM-Tree) to opt
 5. **Flush & Compress**: Once the memtable is full, its contents are sorted, compressed, and flushed to a new, immutable time-shard file on disk
 
 ### Architecture Diagram
-
-```
+```mermaid
 graph TD
-    subgraph "C++ Storage Engine"
+    subgraph "C++ Storage Engine (Write Path)"
         A[API Ingest Request] --> B{Write Path};
-        B -- "1. Append to WAL on Disk" --> WAL[(Write-Ahead Log)];
-        B -- "2. Insert into Memtable in RAM" --> Memtable([Memtable]);
-        Memtable -- "4. Flush when full" --> C{Compression};
-        C -- "5. Write to new shard" --> Shard[(Time-Sharded .bin File on Disk)];
+        B --> |"1. Append to WAL (Disk)"| WAL[(Write-Ahead Log)];
+        B --> |"2. Insert into Memtable (RAM)"| Memtable[(Memtable)];
+        Memtable --> |"4. Flush when full"| C{Compression};
+        C --> |"5. Write compressed shard to disk"| Shard[(Time-Sharded .bin File)];
     end
-    Query[API Query Request] -- "3. Read recent data" --> Memtable;
-```
+
+    Query[API Query Request] --> |"3. Read recent data from Memtable"| Memtable;
+
+ ```
 
 ## Technical Deep Dive: Design Decisions
 
@@ -61,7 +62,7 @@ All benchmarks were executed on the following developer-grade machine to ensure 
 
 - **CPU**: 12th Gen Intel(R) Core(TM) i7-12700H
 - **RAM**: 16 GB
-- **Storage**: NVMe SSD
+- **Storage**: 1Tb NVMe SSD Gen 4
 - **OS**: Windows 11 Home (WSL2 Ubuntu 22.04)
 
 ### Performance Results
