@@ -24,6 +24,7 @@ The engine's design is inspired by a Log-Structured Merge-Tree (LSM-Tree) to opt
 
 ### Architecture Diagram
 ```md
+
 flowchart TD
 
     %% =============================
@@ -61,8 +62,7 @@ flowchart TD
     classDef disk fill:#6a1b9a,stroke:#4a126d,color:#fff;
 
 
-
- ```
+```
 
 ## Technical Deep Dive: Design Decisions
 
