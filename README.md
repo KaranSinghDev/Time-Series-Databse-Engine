@@ -24,16 +24,42 @@ The engine's design is inspired by a Log-Structured Merge-Tree (LSM-Tree) to opt
 
 ### Architecture Diagram
 ```mermaid
-graph TD
-    subgraph "C++ Storage Engine (Write Path)"
-        A[API Ingest Request] --> B{Write Path};
-        B --> |"1. Append to WAL (Disk)"| WAL[(Write-Ahead Log)];
-        B --> |"2. Insert into Memtable (RAM)"| Memtable[(Memtable)];
-        Memtable --> |"4. Flush when full"| C{Compression};
-        C --> |"5. Write compressed shard to disk"| Shard[(Time-Sharded .bin File)];
-    end
+flowchart TD
 
-    Query[API Query Request] --> |"3. Read recent data from Memtable"| Memtable;
+    %% =============================
+    %%  API LAYER
+    %% =============================
+    Ingest[API Ingest Request]:::api
+    Query[API Query Request]:::api
+
+    %% =============================
+    %%  WRITE PATH
+    %% =============================
+    Ingest --> WP[Write Path]:::process
+
+    WP -->|1. Append to WAL (Disk)| WAL[(Write-Ahead Log)]:::disk
+    WP -->|2. Insert into Memtable (RAM)| Memtable[(Memtable)]:::ram
+
+    %% =============================
+    %%  READ PATH (HOT QUERIES)
+    %% =============================
+    Query -->|3. Read recent data| Memtable
+
+    %% =============================
+    %%  FLUSH & COMPRESSION
+    %% =============================
+    Memtable -->|4. Flush when full| Comp[Compression Stage]:::process
+    
+    Comp -->|5. Write compressed shard (Disk)| Shard[(Time-Sharded .bin File)]:::disk
+
+    %% =============================
+    %%  STYLES
+    %% =============================
+    classDef api fill:#1f78b4,stroke:#0d4473,color:#fff,font-weight:bold;
+    classDef process fill:#333,stroke:#111,color:#fff;
+    classDef ram fill:#4caf50,stroke:#2e7d32,color:#fff;
+    classDef disk fill:#6a1b9a,stroke:#4a126d,color:#fff;
+
 
  ```
 
