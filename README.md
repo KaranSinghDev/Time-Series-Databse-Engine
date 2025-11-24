@@ -1,51 +1,81 @@
 # C++ Time-Series Database (Insight-TSDB)
 
-A high-performance time-series database engine built from scratch in C++ and exposed via a Python/FastAPI service. This project is a deep dive into the fundamentals of data engineering, focusing on performance, storage efficiency, and professional software practices.  
-The system is designed to ingest numerical time-series data, store it efficiently using custom compression, and query it with low latency.
+A high-performance time-series database engine built from scratch in C++ and exposed via a Python/FastAPI service. This project is a deep dive into the fundamentals of data engineering, focusing on single-machine performance, storage efficiency, and low-level system optimization.
 
-## Key Features & Architectural Highlights
+The system is designed to ingest numerical time-series data, store it efficiently using custom compression, and query it with sub-millisecond latency.
 
-- **Custom C++ Storage Engine:** Core logic is written in modern C++ (C++17) for maximum performance and control over memory.
-- **High-Performance Querying:** A time-sharded storage architecture minimizes I/O, enabling sub-millisecond latencies for hot-cache reads.
-- **Efficient Compression:** Implemented bespoke, time-series-specific compression algorithms (Delta-of-Delta and XOR) to drastically reduce storage footprint.
-- **Modern API Layer:** A clean, documented API is provided using Python 3 and FastAPI for easy integration.
-- **Professional Tooling:** Fully containerized with Docker, built with CMake, and unit-tested via Pytest and a C++ suite.
+## Key Features
 
-## Performance Benchmarks
+- **Custom C++ Storage Engine**: Core logic is written in modern C++ (C++17) for direct control over memory layout and to avoid managed runtime overhead
+- **High-Performance Querying**: A time-sharded storage architecture transforms slow, random disk reads into fast, sequential scans, enabling extremely low query latencies
+- **Efficient Custom Compression**: Implemented time-series-specific compression algorithms (Delta-of-Delta for timestamps, XOR for values) from scratch to maximize storage efficiency
+- **Modern API Layer**: A clean, documented RESTful API is provided using Python 3 and FastAPI for easy integration
+- **Professional Tooling**: The project is fully containerized with Docker, built with CMake, and verified with a comprehensive Pytest and C++ unit testing suite
 
-Benchmarks were run on a local WSL2 environment by ingesting and querying a dataset of 1,000,000 pseudo-realistic data points. The results demonstrate a clear trade-off, prioritizing extremely fast read latencies.
+## System Architecture: The Write Path
 
-| Metric                   | Result           | Analysis                                                                                                        |
-|--------------------------|------------------|-----------------------------------------------------------------------------------------------------------------|
-| Storage Efficiency       | ~8.2 bytes/point | 50% reduction in storage compared to uncompressed 16-byte data points, via custom compression on high-entropy data. |
-| Hot Query Latency (p99)  | ~1.3 ms          | Querying a 1-hour window of recent data (3,600 points); quick due to page caching and efficient decompression.   |
-| Cold Query Latency (p99) | ~16 ms           | Querying a 24-hour window of older data (86,400 points); time-sharding avoids full scan of entire dataset.       |
-| Ingestion Throughput     | ~5,500 points/sec| Baseline performance; bottleneck is per-point file I/O—batch ingestion API proposed for optimization.            |
+The engine's design is inspired by a Log-Structured Merge-Tree (LSM-Tree) to optimize for high-throughput data ingestion while ensuring data durability.
 
-1.By designing the compression algorithms for the data's specific patterns, the engine achieves a 50% storage reduction on high-entropy data, a result generic algorithms don't generally achieve.
+1. **Ingest**: An API request is received
+2. **Write-Ahead Log (WAL)**: The data point is immediately appended to a WAL on disk. This guarantees that even if the server crashes, no data will be lost
+3. **Memtable**: The data point is simultaneously inserted into an in-memory table for fast access
+4. **Query**: "Hot" queries for very recent data are served directly from the memtable at memory speed
+5. **Flush & Compress**: Once the memtable is full, its contents are sorted, compressed, and flushed to a new, immutable time-shard file on disk
 
-2.By architecting the I/O pattern to align with the OS page cache, the engine delivers p99 latencies of just 1.3ms on hot-cache reads—a level of performance typically associated with highly-optimized, low-level systems.
+### Architecture Diagram
 
-## System Architecture
-
-```mermaid
-graph TD;
-    subgraph "Docker Container"
-        Client[External Client] -- "HTTP POST /api/ingest(JSON)" --> FastAPI;
-        Client -- "HTTP GET /api/query(JSON)" --> FastAPI;
-
-        FastAPI[Python FastAPI Server] -- "Calls Function" --> CtypesBridge[Python ctypes Bridge];
-        CtypesBridge -- "Loads & Calls" --> CppEngine[libinsight.so];
-        
-        subgraph "C++ Storage Engine"
-            CppEngine -- "Writes/Reads Compressed Data" --> Shards[Time-Sharded .bin Files];
-        end
+```
+graph TD
+    subgraph "C++ Storage Engine"
+        A[API Ingest Request] --> B{Write Path};
+        B -- "1. Append to WAL on Disk" --> WAL[(Write-Ahead Log)];
+        B -- "2. Insert into Memtable in RAM" --> Memtable([Memtable]);
+        Memtable -- "4. Flush when full" --> C{Compression};
+        C -- "5. Write to new shard" --> Shard[(Time-Sharded .bin File on Disk)];
     end
+    Query[API Query Request] -- "3. Read recent data" --> Memtable;
 ```
 
-## How to Build and Run
+## Technical Deep Dive: Design Decisions
 
-This project is fully containerized and can be built and run with two commands.
+The performance of this database is the result of specific, low-level design trade-offs made to optimize for the time-series use case.
+
+### Why Time-Sharding?
+
+The most common query pattern for time-series data is a short-range time scan. A traditional B-Tree index is inefficient for this. **Time-sharding transforms this problem from a slow, random-I/O disk operation into a blazing-fast, sequential scan** of a single, small, contiguous file that is likely already in the OS page cache.
+
+### Why Custom Compression (Delta-of-Delta & XOR)?
+
+Generic compression algorithms like Gzip are blind to data patterns. Time-series data is highly structured: timestamps are predictable, and values are often similar. By implementing these algorithms from scratch, we can exploit these patterns:
+
+- **Delta-of-Delta** can reduce a 64-bit timestamp to just a few bytes
+- **XOR compression** effectively stores only the changes in a floating-point value's bit pattern
+
+This results in a storage footprint far smaller than what generic tools can achieve.
+
+## Benchmark Analysis
+
+### Benchmark Environment
+
+All benchmarks were executed on the following developer-grade machine to ensure reproducibility:
+
+- **CPU**: 12th Gen Intel(R) Core(TM) i7-12700H
+- **RAM**: 16 GB
+- **Storage**: NVMe SSD
+- **OS**: Windows 11 Home (WSL2 Ubuntu 22.04)
+
+### Performance Results
+
+Benchmarks were run by ingesting and querying a dataset of 1,000,000 pseudo-realistic data points.
+
+| Metric | Result | Analysis |
+|--------|--------|----------|
+| Storage Efficiency | ~8.2 bytes/point | A 50% reduction in storage compared to uncompressed 16-byte data points, achieved via custom compression on high-entropy data |
+| Hot Query Latency (p99) | ~1.3 ms | Querying a 1-hour window of recent data. This validates the speed of the time-sharded architecture combined with OS page caching |
+| Cold Query Latency (p99) | ~16 ms | Querying a 24-hour window of older data. Proves the design successfully avoids slow full-disk scans |
+| Ingestion Throughput | ~5,500 points/sec | Baseline performance. The identified bottleneck is per-point file I/O overhead. The proposed optimization is a batch-ingestion API |
+
+## Getting Started
 
 ### Prerequisites
 
@@ -54,7 +84,7 @@ This project is fully containerized and can be built and run with two commands.
 
 ### 1. Build the Docker Image
 
-Clone the repository and run the Docker build command from the project root.
+Clone the repository and run the docker build command from the project root:
 
 ```bash
 git clone https://github.com/KaranSinghDev/cpp-time-series-database.git
@@ -68,15 +98,13 @@ docker build -t insight-service .
 docker run -p 8000:8000 insight-service
 ```
 
-The service is now running and accessible at `http://127.0.0.1:8000`. Interactive API documentation is available at `http://127.0.0.1:8000/docs`.
+The service is now running at `http://127.0.0.1:8000`. Interactive API documentation is available at `http://127.0.0.1:8000/docs`.
 
 ## Local Development & Testing
 
-For developers who wish to build and test the components manually.
-
 ### Prerequisites
 
-- A C++17 compiler (`g++`) & CMake
+- A C++17 compiler (g++) & CMake
 - Python 3.10+ & pip
 
 ### 1. Build the C++ Engine
@@ -93,17 +121,24 @@ cmake --build build
 ./engine/build/engine_test
 ```
 
-### 3. Set Up the Python Environment
+### 3. Set Up & Run Python Tests
 
 ```bash
 # From the project root
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-```
-
-### 4. Run the Python Integration Tests
-
-```bash
 LD_LIBRARY_PATH=./engine/build pytest
 ```
+
+## Technology Stack
+
+- **Core Engine**: C++17
+- **API Framework**: Python 3, FastAPI
+- **Build System**: CMake
+- **Testing**: Pytest (Python), C++ unit tests
+- **Deployment**: Docker
+
+## License
+
+This project is provided as-is for educational and demonstration purposes.
